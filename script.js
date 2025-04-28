@@ -1,4 +1,3 @@
-
 window.addEventListener("load", () => {
   // Set up the camera offset.
   const camera = document.querySelector("[gps-new-camera]");
@@ -94,21 +93,13 @@ window.addEventListener("load", () => {
 
             // On marker click, display the plant's name at the top.
             marker.addEventListener("click", () => {
-            plantInfoDisplay.style.display = "block";
-            plantInfoDisplay.innerHTML = `
-                <div style="font-size: 2em; font-weight: bold;">
-                Common Name: ${plant.cname2 ? plant.cname2 + ", " : ""}${plant.cname1 || "Unknown"}
-                </div>
-                <div style="font-size: 1em;">
-                Genus: ${plant.genus || "N/A"} &nbsp;&nbsp; Species: ${plant.species || "N/A"}
-                </div>
-            `;
-            // Hide the display after 3 seconds.
-            setTimeout(() => {
+              plantInfoDisplay.style.display = "block";
+              plantInfoDisplay.textContent = plant.cname1 || "Unknown";
+              // Optionally hide it after 3 seconds.
+              setTimeout(() => {
                 plantInfoDisplay.style.display = "none";
-            }, 3000);
+              }, 3000);
             });
-
 
             scene.appendChild(marker);
             plantMarkers[plant.s_id] = marker;
