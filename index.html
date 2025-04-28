@@ -2,153 +2,203 @@
 <html lang="en">
 
 <head>
-    <meta charset="utf-8" />
-    <title>Plant Map</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-
-    <!-- 1) Leaflet CSS must come first -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha512-..."
-        crossorigin="" />
-
-    <!-- 2) (Optional) MarkerCluster CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-
+    <meta charset="UTF-8" />
+    <title>RaR Compass Calibration (Debug Mode)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Optional: Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet" />
     <style>
-        /* make sure the map container actually fills the screen */
-        html,
         body {
             margin: 0;
-            padding: 0;
-            height: 100%;
+            font-family: 'Inter', sans-serif;
+            background-color: #000;
+            color: #fff;
+            text-align: center;
+            padding: 1.5rem;
         }
 
-        #map {
+        header {
+            margin-bottom: 2rem;
+        }
+
+        #compass-wrapper {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin: 2rem auto;
+        }
+
+        /* The static arrow at the top (optional for visual reference) */
+        .arrow {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-bottom: 40px solid red;
+            z-index: 2;
+        }
+
+        /* The compass image rotates */
+        .compass-img {
             width: 100%;
             height: 100%;
+            background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Compass_Rose_Fixed.svg/1024px-Compass_Rose_Fixed.svg.png') center no-repeat;
+            background-size: contain;
+            transition: transform 0.2s ease-out;
         }
 
-        .plant-popup {
-            font-size: 0.9em;
-            line-height: 1.2;
+        #heading-value {
+            font-size: 1.3rem;
+            margin-top: 1rem;
+        }
+
+        button {
+            display: block;
+            width: 90%;
+            max-width: 300px;
+            margin: 1rem auto;
+            padding: 1rem;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: 2px solid white;
+            background: transparent;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: white;
+            color: black;
+        }
+
+        footer {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+
+        /* Debug info style */
+        #debug-info {
+            background: rgba(255, 255, 255, 0.8);
+            color: #000;
+            font-size: 0.9rem;
+            padding: 1rem;
+            text-align: left;
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 1rem;
         }
     </style>
 </head>
 
 <body>
-    <div id="map"></div>
+    <header>
+        <div class="title">
+            <span style="color: #f23c3c; font-size: 1.5rem; font-weight:700;">Roots</span>
+            <span style="color: #fff; font-size: 1.5rem; font-weight:700;"> and </span>
+            <span style="color: #f5cc3b; font-size: 1.5rem; font-weight:700;">Routes</span>
+        </div>
+    </header>
 
-    <!-- 3) Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha512-..." crossorigin=""></script>
-    <!-- 4) (Optional) MarkerCluster plugin -->
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <h2>🧭 Calibrate Your Heading</h2>
+    <p>Face true North, then tap "Calibrate" to begin the AR experience.</p>
+
+    <div id="compass-wrapper">
+        <div class="arrow"></div>
+        <div class="compass-img" id="compass-img"></div>
+    </div>
+
+    <p id="heading-value">Heading: ...</p>
+
+    <button id="start-btn">Start Compass</button>
+    <button id="calibrate-btn">Calibrate & Enter AR</button>
+
+    <div id="debug-info">Debug Info:</div>
+
+    <footer>
+        Plants Team © 2024
+    </footer>
 
     <script>
-        // initialize the map
-        const map = L.map("map").fitWorld();
+        // Debug logging function: append messages to debug-info element.
+        function logDebug(message) {
+            const debugInfo = document.getElementById("debug-info");
+            debugInfo.innerHTML += `<br>${message}`;
+        }
 
-        // add OpenStreetMap tiles
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            maxZoom: 19,
-            attribution: "&copy; OpenStreetMap contributors",
-        }).addTo(map);
+        document.addEventListener("DOMContentLoaded", () => {
+            logDebug("DOM fully loaded.");
 
-        // optional clustering for dense areas
-        const clusterGroup = L.markerClusterGroup();
-        map.addLayer(clusterGroup);
+            // Detect if user is on iOS
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            logDebug("isIOS: " + isIOS);
 
-        // watch the user's location, recenter when found
-        map.locate({ watch: true, setView: true, maxZoom: 18 });
-
-        map.on("locationfound", (e) => {
-            // properly pull lat/lng and accuracy from the event
-            const lat = e.latlng.lat;
-            const lon = e.latlng.lng;
-            const accuracy = e.accuracy;
-
-            // draw/update the blue “you are here” dot + accuracy circle
-            if (!window._userMarker) {
-                window._userMarker = L.marker([lat, lon]).addTo(map);
-                window._accuracyCircle = L.circle([lat, lon], { radius: accuracy }).addTo(map);
-            } else {
-                window._userMarker.setLatLng([lat, lon]);
-                window._accuracyCircle.setLatLng([lat, lon]).setRadius(accuracy);
+            // If not iOS, redirect to ar.html immediately
+            if (!isIOS) {
+                logDebug("Non-iOS detected. Redirecting to ar.html.");
+                window.location.href = "ar.html";
+                return;
             }
 
-            // throttle plant reloads to once every 5s
-            if (!window._lastFetch || Date.now() - window._lastFetch > 5000) {
-                window._lastFetch = Date.now();
-                loadAndDisplayPlants(lat, lon);
+            // Retrieve necessary elements
+            const compassImg = document.getElementById("compass-img");
+            const headingDisplay = document.getElementById("heading-value");
+            const startBtn = document.getElementById("start-btn");
+            const calibrateBtn = document.getElementById("calibrate-btn");
+
+            let currentHeading = 0;
+
+            function startCompass() {
+                logDebug("startCompass triggered.");
+                if (typeof DeviceOrientationEvent.requestPermission === "function") {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(permission => {
+                            logDebug("Compass permission: " + permission);
+                            if (permission === "granted") {
+                                window.addEventListener("deviceorientation", handleOrientation, true);
+                                logDebug("Added deviceorientation event listener.");
+                            } else {
+                                alert("Compass access denied.");
+                            }
+                        })
+                        .catch(err => {
+                            alert("Compass not supported.");
+                            logDebug("Error: " + err);
+                        });
+                } else {
+                    // Fallback for non-iOS devices (shouldn't happen on iOS)
+                    window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+                    window.addEventListener("deviceorientation", handleOrientation, true);
+                    logDebug("Added fallback orientation event listeners.");
+                }
             }
+
+            function handleOrientation(event) {
+                const heading = event.webkitCompassHeading || (360 - event.alpha);
+                logDebug("Orientation event received. Heading: " + heading);
+                if (heading !== undefined && !isNaN(heading)) {
+                    currentHeading = heading;
+                    headingDisplay.textContent = `Heading: ${Math.round(heading)}°`;
+                    compassImg.style.transform = `rotate(${-heading}deg)`;
+                }
+            }
+
+            startBtn.addEventListener("click", startCompass);
+
+            calibrateBtn.addEventListener("click", () => {
+                const offset = (360 - currentHeading + 360) % 360;
+                logDebug("Calculated offset: " + offset);
+                localStorage.setItem("calibrationOffset", offset);
+                logDebug("Stored offset in localStorage. Redirecting to ar.html.");
+                window.location.href = "ar.html";
+            });
         });
-
-        map.on("locationerror", (err) => {
-            alert("Could not get your location: " + err.message);
-        });
-
-        function loadAndDisplayPlants(userLat, userLon) {
-            fetch("./ABG.csv")
-                .then((r) => r.text())
-                .then((csv) => {
-                    clusterGroup.clearLayers();
-                    const plants = parseCSV(csv)
-                        .map((p) => ({
-                            ...p,
-                            dist: getDistance(userLat, userLon, p.lat, p.lon),
-                        }))
-                        .filter((p) => p.dist <= 100)   // show within 100m
-                        .sort((a, b) => a.dist - b.dist);
-
-                    plants.forEach((p) => {
-                        const m = L.marker([p.lat, p.lon]);
-                        m.bindPopup(`
-              <div class="plant-popup">
-                <strong>${p.cname1}${p.cname2 ? ", " + p.cname2 : ""}</strong><br>
-                Genus: ${p.genus}<br>
-                Species: ${p.species}<br>
-                Distance: ${Math.round(p.dist)} m
-              </div>
-            `);
-                        clusterGroup.addLayer(m);
-                    });
-                })
-                .catch(console.error);
-        }
-
-        function parseCSV(txt) {
-            return txt
-                .split("\n")
-                .slice(1)
-                .map((r) => {
-                    const c = r.split(",");
-                    while (c.length < 11) c.push("");
-                    return {
-                        s_id: c[0].trim(),
-                        cname1: c[1].trim() || "Unknown",
-                        cname2: c[2].trim() || "",
-                        genus: c[4].trim() || "Unknown",
-                        species: c[5].trim() || "",
-                        lon: parseFloat(c[7]) || 0,
-                        lat: parseFloat(c[8]) || 0,
-                        height: parseFloat(c[10]) || 1,
-                    };
-                })
-                .filter((p) => p.s_id && p.lat && p.lon);
-        }
-
-        // Haversine formula
-        function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3,
-                toRad = Math.PI / 180;
-            const φ1 = lat1 * toRad,
-                φ2 = lat2 * toRad;
-            const dφ = (lat2 - lat1) * toRad,
-                dλ = (lon2 - lon1) * toRad;
-            const a =
-                Math.sin(dφ / 2) ** 2 +
-                Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) ** 2;
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        }
     </script>
 </body>
 
