@@ -1,5 +1,5 @@
 window.addEventListener("load", () => {
-  // offset of camera is set up here
+  // Set up the camera offset.
   const camera = document.querySelector("[gps-new-camera]");
   const offset = parseFloat(localStorage.getItem("calibrationOffset") || "0");
   camera.setAttribute("gps-new-camera", {
@@ -20,15 +20,16 @@ window.addEventListener("load", () => {
   const plantInfoDisplay = document.getElementById("plant-info");
 
   let lastMarkerUpdate = 0;
-  const updateInterval = 2000; 
+  const updateInterval = 10000; // subsequent updates every 10 seconds
 
+  // We'll track if we've done an immediate update yet.
   let firstUpdateDone = false;
 
   camera.addEventListener("gps-camera-update-position", (e) => {
     const userLat = e.detail.position.latitude;
     const userLon = e.detail.position.longitude;
 
-    // the users marker
+    // Update or create the red user marker.
     if (!userMarker) {
       userMarker = document.createElement("a-box");
       userMarker.setAttribute("scale", "1 1 1");
@@ -42,14 +43,13 @@ window.addEventListener("load", () => {
 
     const now = Date.now();
 
-    
-    // how often code is updated
+    // If we've never updated before, do an immediate update.
     if (!firstUpdateDone) {
-      firstUpdateDone = true; 
-      lastMarkerUpdate = now; 
+      firstUpdateDone = true; // Mark that we've done the initial update
+      lastMarkerUpdate = now; // Record the time so future updates track from here
       updatePlantMarkers(userLat, userLon);
     } else {
-      
+      // For subsequent updates, apply the 10-second throttle
       if (now - lastMarkerUpdate > updateInterval) {
         lastMarkerUpdate = now;
         updatePlantMarkers(userLat, userLon);
@@ -82,7 +82,7 @@ window.addEventListener("load", () => {
           } else {
             const marker = document.createElement("a-entity");
             marker.setAttribute("gltf-model", getPolyModelURL(plant.height));
-            marker.setAttribute("scale", getScaleFromHeight(plant.height));
+            marker.setAttribute("scale", "2 2 2");
             marker.setAttribute("position", `0 ${yPos} 0`);
             marker.setAttribute("look-at", "[gps-new-camera]");
             marker.setAttribute(
@@ -91,7 +91,7 @@ window.addEventListener("load", () => {
             );
             marker.setAttribute("class", "clickable");
 
-            // displays the info
+            // On marker click, display info
             marker.addEventListener("click", () => {
               plantInfoDisplay.style.display = "block";
               plantInfoDisplay.innerHTML = `
@@ -106,7 +106,7 @@ window.addEventListener("load", () => {
                   Species: ${plant.species || "N/A"}
                 </div>
               `;
-              // hides the display
+              // Hide after 3 seconds
               setTimeout(() => {
                 plantInfoDisplay.style.display = "none";
               }, 3000);
@@ -117,6 +117,7 @@ window.addEventListener("load", () => {
           }
         });
 
+        // Remove old markers
         for (const id in plantMarkers) {
           if (!plants.find((p) => p.s_id === id)) {
             scene.removeChild(plantMarkers[id]);
@@ -127,6 +128,7 @@ window.addEventListener("load", () => {
       .catch((err) => console.error("CSV load error:", err));
   }
 
+  // --- Helper Functions ---
   function parseCSV(csvText) {
     const rows = csvText.split("\n").slice(1);
     return rows
@@ -151,13 +153,13 @@ window.addEventListener("load", () => {
 
   function getAdjustedHeight(h) {
     const mapping = {
-      0.5: 0,
-      1: 0.1,
-      1.5: 0.35,
-      2: 0.55,
-      2.5: 0.7,
-      3: 0.9,
-      4.5: 1.2,
+      0.5: 0.2,
+      1: 0.3,
+      1.5: 0.45,
+      2: 0.6,
+      2.5: 0.8,
+      3: 1.1,
+      4.5: 1.5,
     };
     const rounded = Math.round(h * 10) / 10;
     return mapping[rounded] || 0.4;
@@ -188,21 +190,4 @@ window.addEventListener("load", () => {
       return "./models/BigTree.glb";
     }
   }
-
-
-function getScaleFromHeight(h) {
-  if (h <= 1) {
-    return "1 1 1"; 
-  } else if (h > 1 && h <= 1.5) {
-    return "1.5 1.5 1.5"; 
-  } else if (h > 1.5 && h < 3) {
-    return "2 2 2"; 
-  } else if (h >= 3 && h <= 4.5) {
-    return "2.2 2.2 2.2"; 
-  } else {
-    return "2.4 2.4 2.4"; 
-  }
-}
-
-
 });
