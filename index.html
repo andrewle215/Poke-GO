@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>RaR Compass Calibration (Debug Mode)</title>
+    <title>RaR Compass Calibration</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Optional: Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet" />
@@ -82,18 +82,6 @@
             font-size: 0.9rem;
             color: #aaa;
         }
-
-        /* Debug info style */
-        #debug-info {
-            background: rgba(255, 255, 255, 0.8);
-            color: #000;
-            font-size: 0.9rem;
-            padding: 1rem;
-            text-align: left;
-            max-height: 150px;
-            overflow-y: auto;
-            margin-top: 1rem;
-        }
     </style>
 </head>
 
@@ -119,46 +107,37 @@
     <button id="start-btn">Start Compass</button>
     <button id="calibrate-btn">Calibrate & Enter AR</button>
 
-    <div id="debug-info">Debug Info:</div>
 
     <footer>
-        Plants Team © 2024
+        Plants Team © 2025
     </footer>
 
     <script>
-        // Debug logging function: append messages to debug-info element.
-        function logDebug(message) {
-            const debugInfo = document.getElementById("debug-info");
-            debugInfo.innerHTML += `<br>${message}`;
-        }
-
         document.addEventListener("DOMContentLoaded", () => {
-            logDebug("DOM fully loaded.");
+            window.logDebug = function (message) {
 
-            // Detect if user is on iOS
+            };
+
             const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
             logDebug("isIOS: " + isIOS);
 
-            // If not iOS, redirect to ar.html immediately
             if (!isIOS) {
                 logDebug("Non-iOS detected. Redirecting to ar.html.");
                 window.location.href = "ar.html";
                 return;
             }
 
-            // Retrieve necessary elements
-            const compassImg = document.getElementById("compass-img");
+            let currentHeading = 0;
             const headingDisplay = document.getElementById("heading-value");
+            const compassImg = document.getElementById("compass-img");
             const startBtn = document.getElementById("start-btn");
             const calibrateBtn = document.getElementById("calibrate-btn");
-
-            let currentHeading = 0;
 
             function startCompass() {
                 logDebug("startCompass triggered.");
                 if (typeof DeviceOrientationEvent.requestPermission === "function") {
                     DeviceOrientationEvent.requestPermission()
-                        .then(permission => {
+                        .then((permission) => {
                             logDebug("Compass permission: " + permission);
                             if (permission === "granted") {
                                 window.addEventListener("deviceorientation", handleOrientation, true);
@@ -167,12 +146,11 @@
                                 alert("Compass access denied.");
                             }
                         })
-                        .catch(err => {
+                        .catch((err) => {
                             alert("Compass not supported.");
                             logDebug("Error: " + err);
                         });
                 } else {
-                    // Fallback for non-iOS devices (shouldn't happen on iOS)
                     window.addEventListener("deviceorientationabsolute", handleOrientation, true);
                     window.addEventListener("deviceorientation", handleOrientation, true);
                     logDebug("Added fallback orientation event listeners.");
