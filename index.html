@@ -107,20 +107,24 @@
     <button id="start-btn">Start Compass</button>
     <button id="calibrate-btn">Calibrate & Enter AR</button>
 
+    <!-- The debug info box has been removed. -->
 
     <footer>
-        Plants Team © 2025
+        Plants Team © 2024
     </footer>
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
+            // Optionally disable debugging logging by overriding logDebug.
             window.logDebug = function (message) {
-
+                // Remove or comment out logging if not needed.
+                // console.log(message);
             };
 
             const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
             logDebug("isIOS: " + isIOS);
 
+            // If not iOS, redirect to ar.html immediately.
             if (!isIOS) {
                 logDebug("Non-iOS detected. Redirecting to ar.html.");
                 window.location.href = "ar.html";
@@ -151,6 +155,7 @@
                             logDebug("Error: " + err);
                         });
                 } else {
+                    // Fallback for non-iOS devices (shouldn't happen on iOS).
                     window.addEventListener("deviceorientationabsolute", handleOrientation, true);
                     window.addEventListener("deviceorientation", handleOrientation, true);
                     logDebug("Added fallback orientation event listeners.");
