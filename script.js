@@ -1,4 +1,17 @@
+<script>
 window.addEventListener("load", () => {
+  // per-species color map (in-memory, reset on reload)
+  const speciesColorMap = {};
+
+  function getColorForSpecies(species) {
+    if (!speciesColorMap[species]) {
+      // generate a random pastel color
+      const hue = Math.floor(Math.random() * 360);
+      speciesColorMap[species] = `hsl(${hue}, 70%, 60%)`;
+    }
+    return speciesColorMap[species];
+  }
+
   // Set up the camera offset.
   const camera = document.querySelector("[gps-new-camera]");
   const offset = parseFloat(localStorage.getItem("calibrationOffset") || "0");
@@ -20,16 +33,15 @@ window.addEventListener("load", () => {
   const plantInfoDisplay = document.getElementById("plant-info");
 
   let lastMarkerUpdate = 0;
-  const updateInterval = 10000; // subsequent updates every 10 seconds
+  const updateInterval = 10000; // 10s
 
-  // We'll track if we've done an immediate update yet.
   let firstUpdateDone = false;
 
   camera.addEventListener("gps-camera-update-position", (e) => {
     const userLat = e.detail.position.latitude;
     const userLon = e.detail.position.longitude;
 
-    // Update or create the red user marker.
+    // user marker
     if (!userMarker) {
       userMarker = document.createElement("a-box");
       userMarker.setAttribute("scale", "1 1 1");
@@ -42,24 +54,16 @@ window.addEventListener("load", () => {
     );
 
     const now = Date.now();
-
-    // If we've never updated before, do an immediate update.
-    if (!firstUpdateDone) {
-      firstUpdateDone = true; // Mark that we've done the initial update
-      lastMarkerUpdate = now; // Record the time so future updates track from here
+    if (!firstUpdateDone || now - lastMarkerUpdate > updateInterval) {
+      firstUpdateDone = true;
+      lastMarkerUpdate = now;
       updatePlantMarkers(userLat, userLon);
-    } else {
-      // For subsequent updates, apply the 10-second throttle
-      if (now - lastMarkerUpdate > updateInterval) {
-        lastMarkerUpdate = now;
-        updatePlantMarkers(userLat, userLon);
-      }
     }
   });
 
   function updatePlantMarkers(userLat, userLon) {
     fetch("./ABG.csv")
-      .then((response) => response.text())
+      .then((r) => r.text())
       .then((csvText) => {
         const plants = parseCSV(csvText)
           .map((p) => ({
@@ -70,124 +74,79 @@ window.addEventListener("load", () => {
           .sort((a, b) => a.distance - b.distance)
           .slice(0, 10);
 
+        // add/update
         plants.forEach((plant) => {
-          const heightScale = getAdjustedHeight(plant.height);
-          const yPos = heightScale / 2;
+          const color = getColorForSpecies(plant.species || plant.genus);
 
           if (plantMarkers[plant.s_id]) {
+            // just move existing sphere
             plantMarkers[plant.s_id].setAttribute(
               "gps-new-entity-place",
               `latitude: ${plant.lat}; longitude: ${plant.lon}`
             );
           } else {
-            const marker = document.createElement("a-entity");
-            marker.setAttribute("gltf-model", getPolyModelURL(plant.height));
-            marker.setAttribute("scale", "2 2 2");
-            marker.setAttribute("position", `0 ${yPos} 0`);
-            marker.setAttribute("look-at", "[gps-new-camera]");
-            marker.setAttribute(
+            // create new colored dot
+            const dot = document.createElement("a-sphere");
+            dot.setAttribute("radius", "1");           // adjust size here
+            dot.setAttribute("material", `color: ${color}; opacity: 0.8`);
+            dot.setAttribute("look-at", "[gps-new-camera]"); 
+            dot.classList.add("clickable");
+            dot.setAttribute(
               "gps-new-entity-place",
               `latitude: ${plant.lat}; longitude: ${plant.lon}`
             );
-            marker.setAttribute("class", "clickable");
 
-            // On marker click, display info
-            marker.addEventListener("click", () => {
+            dot.addEventListener("click", () => {
               plantInfoDisplay.style.display = "block";
               plantInfoDisplay.innerHTML = `
-                <div style="font-size: 1em; font-weight: bold;">
-                  Common Name:
-                </div>
-                <div style="font-size: 0.7em;">
-                  ${plant.cname2 ? plant.cname2 + ", " : ""}${plant.cname1 || ""}
-                </div>
-                <div style="font-size: 0.5em;">
-                  Genus: ${plant.genus || "N/A"} &nbsp;&nbsp;
-                  Species: ${plant.species || "N/A"}
-                </div>
+                <strong>${plant.cname2 ? plant.cname2 + ", " : ""}${plant.cname1}</strong><br>
+                Genus: ${plant.genus || "N/A"}<br>
+                Species: ${plant.species || "N/A"}
               `;
-              // Hide after 3 seconds
-              setTimeout(() => {
-                plantInfoDisplay.style.display = "none";
-              }, 3000);
+              setTimeout(() => plantInfoDisplay.style.display = "none", 3000);
             });
 
-            scene.appendChild(marker);
-            plantMarkers[plant.s_id] = marker;
+            scene.appendChild(dot);
+            plantMarkers[plant.s_id] = dot;
           }
         });
 
-        // Remove old markers
-        for (const id in plantMarkers) {
+        // remove old
+        Object.keys(plantMarkers).forEach((id) => {
           if (!plants.find((p) => p.s_id === id)) {
             scene.removeChild(plantMarkers[id]);
             delete plantMarkers[id];
           }
-        }
+        });
       })
-      .catch((err) => console.error("CSV load error:", err));
+      .catch(console.error);
   }
 
-  // --- Helper Functions ---
+  // … rest of your helpers unchanged …
   function parseCSV(csvText) {
     const rows = csvText.split("\n").slice(1);
-    return rows
-      .map((row) => {
-        const columns = row.split(",");
-        while (columns.length < 11) columns.push("");
-        return {
-          s_id: columns[0]?.trim(),
-          cname1: columns[1]?.trim() || "Unknown",
-          cname2: columns[2]?.trim() || "",
-          cname3: columns[3]?.trim() || "",
-          genus: columns[4]?.trim() || "Unknown",
-          species: columns[5]?.trim() || "",
-          cultivar: columns[6]?.trim() || "",
-          lon: parseFloat(columns[7]) || 0,
-          lat: parseFloat(columns[8]) || 0,
-          height: parseFloat(columns[10]) || 1,
-        };
-      })
-      .filter((p) => p.s_id && p.lat !== 0 && p.lon !== 0);
-  }
-
-  function getAdjustedHeight(h) {
-    const mapping = {
-      0.5: 0.2,
-      1: 0.3,
-      1.5: 0.45,
-      2: 0.6,
-      2.5: 0.8,
-      3: 1.1,
-      4.5: 1.5,
-    };
-    const rounded = Math.round(h * 10) / 10;
-    return mapping[rounded] || 0.4;
+    return rows.map((r) => {
+      const c = r.split(",");
+      while (c.length < 11) c.push("");
+      return {
+        s_id: c[0].trim(),
+        cname1: c[1].trim() || "Unknown",
+        cname2: c[2].trim() || "",
+        genus: c[4].trim() || "Unknown",
+        species: c[5].trim() || "",
+        lon: parseFloat(c[7]) || 0,
+        lat: parseFloat(c[8]) || 0,
+        height: parseFloat(c[10]) || 1,
+      };
+    }).filter((p) => p.s_id && p.lat && p.lon);
   }
 
   function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3;
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(Δφ / 2) ** 2 +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-  }
-
-  function getPolyModelURL(h) {
-    if (h <= 1) {
-      return "./models/Shrub.glb";
-    } else if (h > 1 && h <= 1.5) {
-      return "./models/Bush.glb";
-    } else if (h > 1.5 && h < 3) {
-      return "./models/SmallTree.glb";
-    } else if (h >= 3 && h <= 4.5) {
-      return "./models/Tree.glb";
-    } else {
-      return "./models/BigTree.glb";
-    }
+    const R = 6371e3, toRad = Math.PI/180;
+    const φ1 = lat1*toRad, φ2 = lat2*toRad;
+    const dφ = (lat2-lat1)*toRad, dλ = (lon2-lon1)*toRad;
+    const a = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 });
+</script>
