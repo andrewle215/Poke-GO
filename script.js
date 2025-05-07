@@ -1,6 +1,5 @@
-<script>
 window.addEventListener("load", () => {
-  // ———————— Color‐by‐species map ————————
+  // ———————— Color‐by‐species palette ————————
   const speciesColorMap = {};
   function getColorForSpecies(species) {
     if (!speciesColorMap[species]) {
@@ -11,18 +10,18 @@ window.addEventListener("load", () => {
   }
 
   // ———————— Camera setup ————————
-  const camera = document.querySelector("[gps-new-camera]");
+  const camera = document.querySelector("[gps-projected-camera]");
   if (!camera) {
-    console.error("🔴 couldn’t find <a-camera gps-new-camera> in the DOM");
+    console.error("🔴 couldn’t find <a-camera gps-projected-camera> in the DOM");
     return;
   }
   const offset = parseFloat(localStorage.getItem("calibrationOffset") || "0");
-  camera.setAttribute("gps-new-camera", {
+  camera.setAttribute("gps-projected-camera", {
     gpsMinDistance: 3,
     rotate: true,
-    rotationOffset: offset,
+    rotationOffset: offset
   });
-  // force a resize so Aframe+AR.js re-aligns
+  // Force a resize so A-Frame & AR.js re-align
   setTimeout(() => window.dispatchEvent(new Event("resize")), 500);
 
   // ———————— State ————————
@@ -31,7 +30,7 @@ window.addEventListener("load", () => {
   const scene = document.querySelector("a-scene");
   const plantInfoDisplay = document.getElementById("plant-info");
   let lastMarkerUpdate = 0;
-  const updateInterval = 10_000;   // 10s
+  const UPDATE_INTERVAL = 10_000;   // ms
   let firstUpdateDone = false;
 
   // ———————— Listen for GPS updates ————————
@@ -39,7 +38,7 @@ window.addEventListener("load", () => {
     const { latitude: userLat, longitude: userLon } = e.detail.position;
     console.log("🌐 GPS update:", userLat, userLon);
 
-    // 1) your red “you are here” box
+    // 1) “you are here” red box
     if (!userMarker) {
       userMarker = document.createElement("a-box");
       userMarker.setAttribute("scale", "1 1 1");
@@ -47,13 +46,13 @@ window.addEventListener("load", () => {
       scene.appendChild(userMarker);
     }
     userMarker.setAttribute(
-      "gps-new-entity-place",
+      "gps-projected-entity-place",
       `latitude:${userLat};longitude:${userLon}`
     );
 
     // 2) throttle plant updates
     const now = Date.now();
-    if (!firstUpdateDone || now - lastMarkerUpdate > updateInterval) {
+    if (!firstUpdateDone || now - lastMarkerUpdate > UPDATE_INTERVAL) {
       firstUpdateDone = true;
       lastMarkerUpdate = now;
       updatePlantMarkers(userLat, userLon);
@@ -76,10 +75,9 @@ window.addEventListener("load", () => {
             ...p,
             distance: getDistance(userLat, userLon, p.lat, p.lon)
           }))
-          // TEMP: remove filter or bump to 1000m so you can see something
-          //.filter(p => p.distance <= 10)
+          // adjust radius as needed
           .filter(p => p.distance <= 1000)
-          .sort((a,b) => a.distance - b.distance)
+          .sort((a, b) => a.distance - b.distance)
           .slice(0, 10);
 
         console.log("➡️ showing plants:", nearby.length, nearby);
@@ -89,25 +87,25 @@ window.addEventListener("load", () => {
 
           if (plantMarkers[plant.s_id]) {
             plantMarkers[plant.s_id].setAttribute(
-              "gps-new-entity-place",
+              "gps-projected-entity-place",
               `latitude:${plant.lat};longitude:${plant.lon}`
             );
           } else {
             const dot = document.createElement("a-sphere");
-            dot.setAttribute("radius","1");
-            dot.setAttribute("material",`color:${color};opacity:0.8`);
-            dot.setAttribute("look-at","[gps-new-camera]");
+            dot.setAttribute("radius", "1");
+            dot.setAttribute("material", `color:${color};opacity:0.8`);
+            dot.setAttribute("look-at", "[gps-projected-camera]");
             dot.classList.add("clickable");
             dot.setAttribute(
-              "gps-new-entity-place",
+              "gps-projected-entity-place",
               `latitude:${plant.lat};longitude:${plant.lon}`
             );
             dot.addEventListener("click", () => {
               plantInfoDisplay.style.display = "block";
               plantInfoDisplay.innerHTML = `
-                <strong>${plant.cname2?plant.cname2+", ":""}${plant.cname1}</strong><br>
-                Genus: ${plant.genus||"N/A"}<br>
-                Species: ${plant.species||"N/A"}
+                <strong>${plant.cname2 ? plant.cname2 + ", " : ""}${plant.cname1}</strong><br>
+                Genus: ${plant.genus || "N/A"}<br>
+                Species: ${plant.species || "N/A"}
               `;
               setTimeout(() => plantInfoDisplay.style.display = "none", 3000);
             });
@@ -116,7 +114,7 @@ window.addEventListener("load", () => {
           }
         });
 
-        // clean up old
+        // Remove markers for plants no longer nearby
         Object.keys(plantMarkers).forEach(id => {
           if (!nearby.find(p => p.s_id === id)) {
             scene.removeChild(plantMarkers[id]);
@@ -131,7 +129,7 @@ window.addEventListener("load", () => {
   function parseCSV(txt) {
     return txt.split("\n").slice(1).map(r => {
       const c = r.split(",");
-      while(c.length < 11) c.push("");
+      while (c.length < 11) c.push("");
       return {
         s_id: c[0].trim(),
         cname1: c[1].trim() || "Unknown",
@@ -139,8 +137,7 @@ window.addEventListener("load", () => {
         genus: c[4].trim() || "Unknown",
         species: c[5].trim() || "",
         lon: parseFloat(c[7]) || 0,
-        lat: parseFloat(c[8]) || 0,
-        height: parseFloat(c[10]) || 1
+        lat: parseFloat(c[8]) || 0
       };
     }).filter(p => p.s_id && p.lat && p.lon);
   }
@@ -151,7 +148,6 @@ window.addEventListener("load", () => {
     const dφ = (lat2 - lat1) * toRad, dλ = (lon2 - lon1) * toRad;
     const a = Math.sin(dφ/2)**2 +
               Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 });
-</script>
