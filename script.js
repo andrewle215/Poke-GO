@@ -1,3 +1,4 @@
+
 window.addEventListener("load", () => {
   // Set up the camera offset.
   const camera = document.querySelector("[gps-new-camera]");
