@@ -8,22 +8,21 @@
 
     <!-- A-Frame core -->
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <!-- AR.js (location-only) -->
-    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
-    <!-- GPS camera (emits position events) -->
+    <!-- AR.js location-only (for GPS-based markerless) -->
+    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/build/ar-threex-location-only.js"></script>
+    <!-- GPS camera & projected-camera plugins -->
     <script src="https://cdn.jsdelivr.net/npm/aframe-gps-camera@1.10.4/dist/aframe-gps-camera.min.js"></script>
-    <!-- GPS-entity-place (position entities by lat/lng) -->
     <script
-        src="https://cdn.jsdelivr.net/npm/aframe-gps-entity-place@1.8.0/dist/aframe-gps-entity-place.min.js"></script>
+        src="https://cdn.jsdelivr.net/npm/aframe-gps-projected-camera@1.10.4/dist/aframe-gps-projected-camera.min.js"></script>
 
     <style>
         body,
         html {
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
             overflow: hidden;
+            width: 100%;
+            height: 100%
         }
 
         a-scene {
@@ -31,7 +30,7 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: 100%;
+            height: 100%
         }
 
         #plant-info {
@@ -41,7 +40,7 @@
             transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.6);
             color: #fff;
-            padding: 0.5em 1em;
+            padding: .5em 1em;
             border-radius: 4px;
             font-family: sans-serif;
             display: none;
@@ -51,11 +50,9 @@
 </head>
 
 <body>
-    <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false"
-        renderer="alpha: true; antialias: true">
-
-        <a-entity cursor="rayOrigin: mouse"></a-entity>
-        <a-camera gps-new-camera="minDistance: 3; rotate: true"></a-camera>
+    <a-scene embedded vr-mode-ui="enabled:false" renderer="antialias:true; alpha:true">
+        <!-- GPS-projected camera -->
+        <a-camera gps-projected-camera="gpsMinDistance:3; rotate:true"></a-camera>
     </a-scene>
 
     <div id="plant-info"></div>
