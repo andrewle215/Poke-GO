@@ -2,24 +2,25 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <title>Roots & Routes – Calibration</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta charset="UTF-8" />
+    <title>Roots &amp; Routes – Calibration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet" />
     <style>
         body {
             margin: 0;
-            font-family: system-ui, sans-serif;
+            font-family: 'Inter', sans-serif;
             background: #000;
             color: #fff;
             text-align: center;
-            padding: 1.5rem
+            padding: 1.5rem;
         }
 
         #compass-wrapper {
             position: relative;
             width: 300px;
             height: 300px;
-            margin: 2rem auto
+            margin: 2rem auto;
         }
 
         .arrow {
@@ -32,15 +33,19 @@
             border-left: 20px solid transparent;
             border-right: 20px solid transparent;
             border-bottom: 40px solid red;
+            z-index: 2;
         }
 
         .compass-img {
             width: 100%;
             height: 100%;
-            background:
-                url('https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Compass_Rose_Fixed.svg/1024px-Compass_Rose_Fixed.svg.png') center no-repeat;
-            background-size: contain;
-            transition: transform .2s ease-out
+            background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Compass_Rose_Fixed.svg/1024px-Compass_Rose_Fixed.svg.png') center/contain no-repeat;
+            transition: transform .2s ease-out;
+        }
+
+        #heading-value {
+            font-size: 1.3rem;
+            margin-top: 1rem;
         }
 
         button {
@@ -56,53 +61,36 @@
             color: #fff;
             font-weight: bold;
             cursor: pointer;
-            transition: all .2s
+            transition: all .2s ease;
         }
 
         button:hover {
             background: #fff;
-            color: #000
+            color: #000;
         }
     </style>
 </head>
 
 <body>
     <h2>🧭 Calibrate Your Heading</h2>
-    <p>Face true North, then tap “Start Compass” and once the arrow points up, “Calibrate & Enter AR.”</p>
+    <p>Face true North, then tap “Calibrate” to begin the AR experience.</p>
     <div id="compass-wrapper">
         <div class="arrow"></div>
         <div class="compass-img" id="compass-img"></div>
     </div>
     <p id="heading-value">Heading: …</p>
     <button id="start-btn">Start Compass</button>
-    <button id="calibrate-btn">Calibrate & Enter AR</button>
+    <button id="calibrate-btn">Calibrate &amp; Enter AR</button>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener("DOMContentLoaded", () => {
             let currentHeading = 0;
-            const headingDisplay = document.getElementById('heading-value');
-            const compassImg = document.getElementById('compass-img');
+            const headingDisplay = document.getElementById("heading-value");
+            const compassImg = document.getElementById("compass-img");
+            const startBtn = document.getElementById("start-btn");
+            const calibrateBtn = document.getElementById("calibrate-btn");
 
-            document.getElementById('start-btn').addEventListener('click', () => {
-                // iOS 13+ permission flow
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(perm => {
-                            if (perm === 'granted') {
-                                window.addEventListener('deviceorientation', handleOrient, true);
-                            } else {
-                                alert('Compass access denied.');
-                            }
-                        })
-                        .catch(() => alert('Compass not supported.'));
-                } else {
-                    // non-iOS
-                    window.addEventListener('deviceorientationabsolute', handleOrient, true);
-                    window.addEventListener('deviceorientation', handleOrient, true);
-                }
-            });
-
-            function handleOrient(e) {
+            function handleOrientation(e) {
                 const heading = e.webkitCompassHeading || (360 - e.alpha);
                 if (heading != null && !isNaN(heading)) {
                     currentHeading = heading;
@@ -111,11 +99,29 @@
                 }
             }
 
-            document.getElementById('calibrate-btn').addEventListener('click', () => {
-                // rotationOffset = how much to rotate world so “north” lines up
+            function startCompass() {
+                if (typeof DeviceOrientationEvent.requestPermission === "function") {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(p => {
+                            if (p === "granted") {
+                                window.addEventListener("deviceorientation", handleOrientation, true);
+                            } else {
+                                alert("Compass access denied.");
+                            }
+                        })
+                        .catch(() => alert("Compass not supported."));
+                } else {
+                    window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+                    window.addEventListener("deviceorientation", handleOrientation, true);
+                }
+            }
+
+            startBtn.addEventListener("click", startCompass);
+
+            calibrateBtn.addEventListener("click", () => {
                 const offset = (360 - currentHeading + 360) % 360;
-                localStorage.setItem('calibrationOffset', offset);
-                window.location.href = 'ar.html';
+                localStorage.setItem("calibrationOffset", offset);
+                window.location.href = "ar.html";
             });
         });
     </script>
