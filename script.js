@@ -1,194 +1,132 @@
-
-window.addEventListener("load", () => {
-  // Set up the camera offset.
-  const camera = document.querySelector("[gps-new-camera]");
-  const offset = parseFloat(localStorage.getItem("calibrationOffset") || "0");
-  camera.setAttribute("gps-new-camera", {
-    gpsMinDistance: 3,
-    rotate: true,
-    rotationOffset: offset,
-  });
-
-  setTimeout(() => {
-    window.dispatchEvent(new Event("resize"));
-    console.log("🔁 Forced layout resize");
-  }, 500);
-
-  let userMarker = null;
-  let plantMarkers = {};
-
-  const scene = document.querySelector("a-scene");
-  const plantInfoDisplay = document.getElementById("plant-info");
-
-  let lastMarkerUpdate = 0;
-  const updateInterval = 10000; // subsequent updates every 10 seconds
-
-  // We'll track if we've done an immediate update yet.
-  let firstUpdateDone = false;
-
-  camera.addEventListener("gps-camera-update-position", (e) => {
-    const userLat = e.detail.position.latitude;
-    const userLon = e.detail.position.longitude;
-
-    // Update or create the red user marker.
-    if (!userMarker) {
-      userMarker = document.createElement("a-box");
-      userMarker.setAttribute("scale", "1 1 1");
-      userMarker.setAttribute("material", "color: red");
-      scene.appendChild(userMarker);
+window.addEventListener('load', () => {
+  // ───── palette by species ─────
+  const speciesColorMap = {};
+  function getColor(sp) {
+    if (!speciesColorMap[sp]) {
+      // random hue each run
+      speciesColorMap[sp] = `hsl(${Math.floor(Math.random()*360)},70%,60%)`;
     }
-    userMarker.setAttribute(
-      "gps-new-entity-place",
-      `latitude: ${userLat}; longitude: ${userLon}`
-    );
+    return speciesColorMap[sp];
+  }
 
+  // ───── grab our AR.js camera ─────
+  const cam = document.querySelector('[gps-new-camera]');
+  if (!cam) {
+    console.error('No <a-camera gps-new-camera> found');
+    return;
+  }
+
+  // ───── apply one-time compass offset ─────
+  const offset = parseFloat(localStorage.getItem('calibrationOffset') || '0');
+  // AR.js’s gps-new-camera supports a rotationOffset property
+  cam.setAttribute('gps-new-camera', 'rotationOffset', offset);
+
+  const scene = document.querySelector('a-scene');
+  const info  = document.getElementById('plant-info');
+  let userBox = null;
+  const plantDots = {};
+  let lastFetch = 0;
+  const FETCH_INTERVAL = 10_000; // 10 s throttle
+
+  // ───── on each GPS update ─────
+  cam.addEventListener('gps-camera-update-position', e => {
+    const { latitude, longitude } = e.detail.position;
+
+    // place or move the red “you are here” box
+    if (!userBox) {
+      userBox = document.createElement('a-box');
+      userBox.setAttribute('scale', '1 1 1');
+      userBox.setAttribute('material', 'color:red');
+      scene.appendChild(userBox);
+    }
+    userBox.setAttribute('gps-entity-place',
+      `latitude:${latitude};longitude:${longitude}`);
+
+    // throttle how often we re-load the CSV
     const now = Date.now();
-
-    // If we've never updated before, do an immediate update.
-    if (!firstUpdateDone) {
-      firstUpdateDone = true; // Mark that we've done the initial update
-      lastMarkerUpdate = now; // Record the time so future updates track from here
-      updatePlantMarkers(userLat, userLon);
-    } else {
-      // For subsequent updates, apply the 10-second throttle
-      if (now - lastMarkerUpdate > updateInterval) {
-        lastMarkerUpdate = now;
-        updatePlantMarkers(userLat, userLon);
-      }
+    if (now - lastFetch > FETCH_INTERVAL) {
+      lastFetch = now;
+      updatePlants(latitude, longitude);
     }
   });
 
-  function updatePlantMarkers(userLat, userLon) {
-    fetch("./ABG.csv")
-      .then((response) => response.text())
-      .then((csvText) => {
-        const plants = parseCSV(csvText)
-          .map((p) => ({
-            ...p,
-            distance: getDistance(userLat, userLon, p.lat, p.lon),
+  // ───── load & show the nearest 10 plants ─────
+  function updatePlants(uLat, uLon) {
+    fetch('ABG.csv')
+      .then(r => r.text())
+      .then(txt => {
+        const all = parseCSV(txt);
+        // compute distances, sort ascending
+        const nearby = all
+          .map(p => ({ ...p,
+            dist: haversine(uLat, uLon, p.lat, p.lon)
           }))
-          .filter((p) => p.distance <= 10)
-          .sort((a, b) => a.distance - b.distance)
+          .filter(p => p.dist <= 100)    // show within 100 m
+          .sort((a,b) => a.dist - b.dist)
           .slice(0, 10);
 
-        plants.forEach((plant) => {
-          const heightScale = getAdjustedHeight(plant.height);
-          const yPos = heightScale / 2;
-
-          if (plantMarkers[plant.s_id]) {
-            plantMarkers[plant.s_id].setAttribute(
-              "gps-new-entity-place",
-              `latitude: ${plant.lat}; longitude: ${plant.lon}`
-            );
+        nearby.forEach(p => {
+          const c = getColor(p.species || p.genus);
+          if (plantDots[p.s_id]) {
+            plantDots[p.s_id].setAttribute('gps-entity-place',
+              `latitude:${p.lat};longitude:${p.lon}`);
           } else {
-            const marker = document.createElement("a-entity");
-            marker.setAttribute("gltf-model", getPolyModelURL(plant.height));
-            marker.setAttribute("scale", "2 2 2");
-            marker.setAttribute("position", `0 ${yPos} 0`);
-            marker.setAttribute("look-at", "[gps-new-camera]");
-            marker.setAttribute(
-              "gps-new-entity-place",
-              `latitude: ${plant.lat}; longitude: ${plant.lon}`
-            );
-            marker.setAttribute("class", "clickable");
-
-            // On marker click, display info
-            marker.addEventListener("click", () => {
-              plantInfoDisplay.style.display = "block";
-              plantInfoDisplay.innerHTML = `
-                <div style="font-size: 1em; font-weight: bold;">
-                  Common Name:
-                </div>
-                <div style="font-size: 0.7em;">
-                  ${plant.cname2 ? plant.cname2 + ", " : ""}${plant.cname1 || ""}
-                </div>
-                <div style="font-size: 0.5em;">
-                  Genus: ${plant.genus || "N/A"} &nbsp;&nbsp;
-                  Species: ${plant.species || "N/A"}
-                </div>
+            const dot = document.createElement('a-sphere');
+            dot.setAttribute('radius', '1');
+            dot.setAttribute('material', `color:${c};opacity:0.8`);
+            dot.classList.add('clickable');
+            dot.setAttribute('gps-entity-place',
+              `latitude:${p.lat};longitude:${p.lon}`);
+            dot.addEventListener('click', () => {
+              info.style.display = 'block';
+              info.innerHTML = `
+                <strong>${p.cname2 ? p.cname2 + ', ' : ''}${p.cname1}</strong><br>
+                Genus: ${p.genus}<br>
+                Species: ${p.species}
               `;
-              // Hide after 3 seconds
-              setTimeout(() => {
-                plantInfoDisplay.style.display = "none";
-              }, 3000);
+              setTimeout(() => info.style.display = 'none', 3000);
             });
-
-            scene.appendChild(marker);
-            plantMarkers[plant.s_id] = marker;
+            scene.appendChild(dot);
+            plantDots[p.s_id] = dot;
           }
         });
 
-        // Remove old markers
-        for (const id in plantMarkers) {
-          if (!plants.find((p) => p.s_id === id)) {
-            scene.removeChild(plantMarkers[id]);
-            delete plantMarkers[id];
+        // remove dots that are no longer in the nearest set
+        Object.keys(plantDots).forEach(id => {
+          if (!nearby.find(p => p.s_id === id)) {
+            scene.removeChild(plantDots[id]);
+            delete plantDots[id];
           }
-        }
+        });
       })
-      .catch((err) => console.error("CSV load error:", err));
+      .catch(err => console.error('CSV load error:', err));
   }
 
-  // --- Helper Functions ---
-  function parseCSV(csvText) {
-    const rows = csvText.split("\n").slice(1);
-    return rows
-      .map((row) => {
-        const columns = row.split(",");
-        while (columns.length < 11) columns.push("");
-        return {
-          s_id: columns[0]?.trim(),
-          cname1: columns[1]?.trim() || "Unknown",
-          cname2: columns[2]?.trim() || "",
-          cname3: columns[3]?.trim() || "",
-          genus: columns[4]?.trim() || "Unknown",
-          species: columns[5]?.trim() || "",
-          cultivar: columns[6]?.trim() || "",
-          lon: parseFloat(columns[7]) || 0,
-          lat: parseFloat(columns[8]) || 0,
-          height: parseFloat(columns[10]) || 1,
-        };
-      })
-      .filter((p) => p.s_id && p.lat !== 0 && p.lon !== 0);
+  // ───── simple CSV → JS objects ─────
+  function parseCSV(txt) {
+    return txt.split('\n').slice(1).map(row => {
+      const c = row.split(',');
+      while (c.length < 11) c.push('');
+      return {
+        s_id:     c[0].trim(),
+        cname1:   c[1].trim() || 'Unknown',
+        cname2:   c[2].trim() || '',
+        genus:    c[4].trim() || 'Unknown',
+        species:  c[5].trim() || '',
+        lon:      parseFloat(c[7]) || 0,
+        lat:      parseFloat(c[8]) || 0
+      };
+    }).filter(p => p.s_id && p.lat && p.lon);
   }
 
-  function getAdjustedHeight(h) {
-    const mapping = {
-      0.5: 0.2,
-      1: 0.3,
-      1.5: 0.45,
-      2: 0.6,
-      2.5: 0.8,
-      3: 1.1,
-      4.5: 1.5,
-    };
-    const rounded = Math.round(h * 10) / 10;
-    return mapping[rounded] || 0.4;
-  }
-
-  function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3;
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(Δφ / 2) ** 2 +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-  }
-
-  function getPolyModelURL(h) {
-    if (h <= 1) {
-      return "./models/Shrub.glb";
-    } else if (h > 1 && h <= 1.5) {
-      return "./models/Bush.glb";
-    } else if (h > 1.5 && h < 3) {
-      return "./models/SmallTree.glb";
-    } else if (h >= 3 && h <= 4.5) {
-      return "./models/Tree.glb";
-    } else {
-      return "./models/BigTree.glb";
-    }
+  // ───── Haversine (m) ─────
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371e3, toRad = Math.PI/180;
+    const φ1 = lat1 * toRad, φ2 = lat2 * toRad;
+    const dφ = (lat2 - lat1) * toRad,
+          dλ = (lon2 - lon1) * toRad;
+    const a = Math.sin(dφ/2)**2
+            + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 });
