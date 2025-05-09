@@ -7,21 +7,31 @@ window.addEventListener("load", () => {
     return;
   }
 
+  // —————————— species → color map ——————————
+  const speciesColorMap = {};
+  function getColorForSpecies(sp) {
+    if (!speciesColorMap[sp]) {
+      // pick a random hue, 70% saturation, 60% lightness
+      const hue = Math.floor(Math.random() * 360);
+      speciesColorMap[sp] = `hsl(${hue},70%,60%)`;
+    }
+    return speciesColorMap[sp];
+  }
+
   let userBox = null;
   const plantDots = {};
   let lastFetch = 0;
-  const FETCH_INTERVAL = 10_000; // 10 seconds
+  const FETCH_INTERVAL = 10_000; // 10s
 
-  // Listen for GPS updates
   camEl.addEventListener("gps-camera-update-position", e => {
     const { latitude, longitude } = e.detail.position;
 
-    // 1) “You are here” red box
+    // your “you are here” box
     if (!userBox) {
       userBox = document.createElement("a-box");
       userBox.setAttribute("scale","0.5 0.5 0.5");
       userBox.setAttribute("material","color:red;opacity:0.8");
-      userBox.setAttribute("position","0 -1 0"); // drop to ground
+      userBox.setAttribute("position","0 -1 0"); // on ground
       scene.appendChild(userBox);
     }
     userBox.setAttribute(
@@ -29,7 +39,6 @@ window.addEventListener("load", () => {
       `latitude:${latitude};longitude:${longitude}`
     );
 
-    // 2) throttle plant loading
     const now = Date.now();
     if (now - lastFetch > FETCH_INTERVAL) {
       lastFetch = now;
@@ -44,12 +53,14 @@ window.addEventListener("load", () => {
         const all = parseCSV(txt);
         const nearby = all
           .map(p => ({ ...p, dist: haversine(uLat,uLon,p.lat,p.lon) }))
-          .filter(p => p.dist <= 10)      // within 10 m
+          .filter(p => p.dist <= 10)
           .sort((a,b)=>a.dist-b.dist)
           .slice(0,10);
 
-        // place or update dots
         nearby.forEach(p => {
+          const speciesKey = p.species || p.genus;
+          const color      = getColorForSpecies(speciesKey);
+
           if (plantDots[p.s_id]) {
             plantDots[p.s_id].setAttribute(
               "gps-entity-place",
@@ -58,8 +69,8 @@ window.addEventListener("load", () => {
           } else {
             const dot = document.createElement("a-sphere");
             dot.setAttribute("radius","1");
-            dot.setAttribute("material","color:cyan;opacity:0.8");
             dot.setAttribute("position","0 1 0");
+            dot.setAttribute("material", `color:${color};opacity:0.8`);
             dot.setAttribute(
               "gps-entity-place",
               `latitude:${p.lat};longitude:${p.lon}`
@@ -71,16 +82,16 @@ window.addEventListener("load", () => {
                 Species: ${p.species}
               `;
               info.style.display = "block";
-              setTimeout(()=>info.style.display="none", 3000);
+              setTimeout(() => info.style.display = "none", 3000);
             });
             scene.appendChild(dot);
             plantDots[p.s_id] = dot;
           }
         });
 
-        // remove old ones
+        // clean up old
         Object.keys(plantDots).forEach(id => {
-          if (!nearby.find(p=>p.s_id===id)) {
+          if (!nearby.find(x => x.s_id === id)) {
             scene.removeChild(plantDots[id]);
             delete plantDots[id];
           }
@@ -90,21 +101,19 @@ window.addEventListener("load", () => {
   }
 
   function parseCSV(txt) {
-    return txt.split("\n").slice(1)
-      .map(r => {
-        const c = r.split(",");
-        while (c.length < 11) c.push("");
-        return {
-          s_id:    c[0].trim(),
-          cname1:  c[1].trim() || "Unknown",
-          cname2:  c[2].trim() || "",
-          genus:   c[4].trim() || "Unknown",
-          species: c[5].trim() || "",
-          lon: +c[7] || 0,
-          lat: +c[8] || 0
-        };
-      })
-      .filter(p => p.s_id && p.lat && p.lon);
+    return txt.split("\n").slice(1).map(r => {
+      const c = r.split(",");
+      while (c.length < 11) c.push("");
+      return {
+        s_id:    c[0].trim(),
+        cname1:  c[1].trim() || "Unknown",
+        cname2:  c[2].trim() || "",
+        genus:   c[4].trim() || "Unknown",
+        species: c[5].trim() || "",
+        lon: +c[7] || 0,
+        lat: +c[8] || 0
+      };
+    }).filter(p => p.s_id && p.lat && p.lon);
   }
 
   function haversine(lat1,lon1,lat2,lon2) {
