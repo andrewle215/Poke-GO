@@ -1,39 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <title>AR Plant Viewer</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8" />
+    <title>AR Plant Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- A-Frame & AR.js libraries -->
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/build/ar-threex-location-only.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+        }
 
-  <!-- A-Frame core -->
-  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-  <!-- AR.js location-only (for GPS-based markerless) -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/three.js/build/ar-threex-location-only.js"></script>
-  <!-- GPS camera & projected-camera plugins -->
-  <script src="https://cdn.jsdelivr.net/npm/aframe-gps-camera@1.10.4/dist/aframe-gps-camera.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/aframe-gps-projected-camera@1.10.4/dist/aframe-gps-projected-camera.min.js"></script>
+        a-scene {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
 
-  <style>
-    body, html { margin:0; padding:0; overflow:hidden; width:100%; height:100% }
-    a-scene { position:fixed; top:0; left:0; width:100%; height:100% }
-    #plant-info {
-      position:fixed; top:10px; left:50%; transform:translateX(-50%);
-      background:rgba(0,0,0,0.6); color:#fff;
-      padding:.5em 1em; border-radius:4px;
-      font-family:sans-serif; display:none; z-index:10;
-    }
-  </style>
+        /* New top info container instead of the white bottom box */
+        #plant-info {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            font-family: sans-serif;
+            font-size: 1.2em;
+            border-radius: 5px;
+            z-index: 1000;
+            display: none;
+            /* Initially hidden */
+        }
+    </style>
 </head>
-<body>
-  <a-scene
-    embedded
-    vr-mode-ui="enabled:false"
-    renderer="antialias:true; alpha:true">
-    <!-- GPS-projected camera -->
-    <a-camera gps-projected-camera="gpsMinDistance:3; rotate:true"></a-camera>
-  </a-scene>
 
-  <div id="plant-info"></div>
-  <script src="script.js"></script>
+<body>
+    <!-- Only ONE scene here -->
+    <a-scene vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false"
+        renderer="antialias: true; alpha: true">
+        <a-entity cursor="rayOrigin: mouse"></a-entity>
+        <a-camera gps-new-camera></a-camera>
+    </a-scene>
+
+    <!-- New plant info label at the top -->
+    <div id="plant-info"></div>
+
+    <!-- Load main script as an ES module -->
+    <script type="module" src="./script.js"></script>
 </body>
+
 </html>
